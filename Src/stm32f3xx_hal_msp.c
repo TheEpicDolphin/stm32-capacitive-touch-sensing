@@ -97,9 +97,10 @@ void HAL_TSC_MspInit(TSC_HandleTypeDef* htsc)
     __HAL_RCC_GPIOA_CLK_ENABLE();
     /**TSC GPIO Configuration    
     PA0     ------> TSC_G1_IO1
-    PA1     ------> TSC_G1_IO2 
+    PA1     ------> TSC_G1_IO2
+    PA3     ------> TSC_G1_IO4 
     */
-    GPIO_InitStruct.Pin = GPIO_PIN_0;
+    GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_3;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -141,12 +142,20 @@ void HAL_TSC_MspDeInit(TSC_HandleTypeDef* htsc)
   
     /**TSC GPIO Configuration    
     PA0     ------> TSC_G1_IO1
-    PA1     ------> TSC_G1_IO2 
+    PA1     ------> TSC_G1_IO2
+    PA3     ------> TSC_G1_IO4 
     */
-    HAL_GPIO_DeInit(GPIOA, GPIO_PIN_0|GPIO_PIN_1);
+    HAL_GPIO_DeInit(GPIOA, GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_3);
 
     /* TSC interrupt DeInit */
-    HAL_NVIC_DisableIRQ(EXTI2_TSC_IRQn);
+  /* USER CODE BEGIN TSC:EXTI2_TSC_IRQn disable */
+    /**
+    * Uncomment the line below to disable the "EXTI2_TSC_IRQn" interrupt
+    * Be aware, disabling shared interrupt may affect other IPs
+    */
+    /* HAL_NVIC_DisableIRQ(EXTI2_TSC_IRQn); */
+  /* USER CODE END TSC:EXTI2_TSC_IRQn disable */
+
   /* USER CODE BEGIN TSC_MspDeInit 1 */
 
   /* USER CODE END TSC_MspDeInit 1 */

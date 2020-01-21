@@ -40,12 +40,10 @@
 //#define TSCx_MEDIUM_MAXTHRESHOLD        2640
 //#define TSCx_HIGH_MAXTHRESHOLD          2500
 
-#define TSCx_MIN_THRESHOLD              30
-#define TSCx_LOW_MAXTHRESHOLD           100
-#define TSCx_MEDIUM_MAXTHRESHOLD        150
-#define TSCx_HIGH_MAXTHRESHOLD          2500
 #define TSCx_TS1_MINTHRESHOLD			30
 #define TSCx_TS1_MAXTHRESHOLD			100
+#define TSCx_TS2_MINTHRESHOLD			30
+#define TSCx_TS2_MAXTHRESHOLD			100
 
 /* USER CODE END PD */
 
@@ -59,7 +57,10 @@ TSC_HandleTypeDef htsc;
 
 /* USER CODE BEGIN PV */
 /* Array used to store the acquisition value */
-__IO uint32_t uhTSCAcquisitionValue;
+//__IO uint32_t uhTSCAcquisitionValue;
+__IO uint32_t uhTSCAcquisitionValue[2];
+uint8_t IdxBank = 0;
+TSC_IOConfigTypeDef IoConfig;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -108,6 +109,16 @@ int main(void)
   MX_TOUCHSENSING_Init();
   /* USER CODE BEGIN 2 */
 
+  /*##-2- Configure the touch-sensing IOs ####################################*/
+  IoConfig.ChannelIOs  = TSC_GROUP1_IO1; /* Start with the first channel */
+  IoConfig.SamplingIOs = TSC_GROUP1_IO2;
+  IoConfig.ShieldIOs = 0;
+
+  if (HAL_TSC_IOConfig(&htsc, &IoConfig) != HAL_OK)
+  {
+    /* Initialization Error */
+    Error_Handler();
+  }
 
   /*##-1- Discharge the touch-sensing IOs ####################################*/
   HAL_TSC_IODischarge(&htsc, ENABLE);
@@ -199,7 +210,7 @@ static void MX_TSC_Init(void)
   htsc.Init.SynchroPinPolarity = TSC_SYNC_POLARITY_FALLING;
   htsc.Init.AcquisitionMode = TSC_ACQ_MODE_NORMAL;
   htsc.Init.MaxCountInterrupt = DISABLE;
-  htsc.Init.ChannelIOs = TSC_GROUP1_IO1;
+  htsc.Init.ChannelIOs = TSC_GROUP1_IO1|TSC_GROUP1_IO4;
   htsc.Init.ShieldIOs = 0;
   htsc.Init.SamplingIOs = TSC_GROUP1_IO2;
   if (HAL_TSC_Init(&htsc) != HAL_OK)
@@ -228,12 +239,22 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
 
+  /*Configure GPIO pin : PA2 */
+  GPIO_InitStruct.Pin = GPIO_PIN_2;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
   /*Configure GPIO pin : LD2_Pin */
   GPIO_InitStruct.Pin = LD2_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(LD2_GPIO_Port, &GPIO_InitStruct);
+
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI2_TSC_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI2_TSC_IRQn);
 
 }
 
@@ -246,95 +267,99 @@ static void MX_GPIO_Init(void)
   * @retval None
   */
 
+//void HAL_TSC_ConvCpltCallback(TSC_HandleTypeDef* htsc){
+//	  /*##-3- Discharge the touch-sensing IOs ####################################*/
+//	  HAL_TSC_IODischarge(htsc, ENABLE);
+//	  /* Note: a delay can be added here */
+//
+//	  /*##-4- Check if the acquisition is correct (no max count) #################*/
+//	  if (HAL_TSC_GroupGetStatus(htsc, TSC_GROUP1_IDX) == TSC_GROUP_COMPLETED)
+//	  {
+//	    /*##-5- Read the acquisition value #######################################*/
+//	    uhTSCAcquisitionValue = HAL_TSC_GroupGetValue(htsc, TSC_GROUP1_IDX);
+//	    /* Note: Show the touch activity on LEDs.
+//	       The threshold values are indicative and may need to be adjusted */
+//	    if ((uhTSCAcquisitionValue > TSCx_TS1_MINTHRESHOLD) && (uhTSCAcquisitionValue < TSCx_TS1_MAXTHRESHOLD)) // Channel 1
+//	    {
+//	    	HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, 1);
+//	    }
+//	    else
+//	    {
+//	    	HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, 0);
+//	    }
+//	  }
+//
+//	  /*##-6- Re-start the acquisition process ###################################*/
+//	  if (HAL_TSC_Start_IT(htsc) != HAL_OK)
+//	  {
+//	    /* Acquisition Error */
+//	    Error_Handler();
+//	  }
+//}
+
 void HAL_TSC_ConvCpltCallback(TSC_HandleTypeDef* htsc){
-	  /*##-3- Discharge the touch-sensing IOs ####################################*/
+	  /*##-5- Discharge the touch-sensing IOs ####################################*/
 	  HAL_TSC_IODischarge(htsc, ENABLE);
 	  /* Note: a delay can be added here */
 
-	  /*##-4- Check if the acquisition is correct (no max count) #################*/
+	  /*##-6- Check if the acquisition is correct (no max count) #################*/
 	  if (HAL_TSC_GroupGetStatus(htsc, TSC_GROUP1_IDX) == TSC_GROUP_COMPLETED)
 	  {
-	    /*##-5- Read the acquisition value #######################################*/
-	    uhTSCAcquisitionValue = HAL_TSC_GroupGetValue(htsc, TSC_GROUP1_IDX);
+	    /*##-7- Read the acquisition value #######################################*/
+	    uhTSCAcquisitionValue[IdxBank] = HAL_TSC_GroupGetValue(htsc, TSC_GROUP1_IDX);
 	    /* Note: Show the touch activity on LEDs.
 	       The threshold values are indicative and may need to be adjusted */
-	    if ((uhTSCAcquisitionValue > TSCx_TS1_MINTHRESHOLD) && (uhTSCAcquisitionValue < TSCx_TS1_MAXTHRESHOLD)) // Channel 1
-	    {
-	    	HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, 1);
+	    if(IdxBank == 0){
+	    	if ((uhTSCAcquisitionValue[0] > TSCx_TS1_MINTHRESHOLD) && (uhTSCAcquisitionValue[0] < TSCx_TS1_MAXTHRESHOLD)) // Channel 1
+	    	{
+	    		HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, 1);
+	    	}
+	    	else
+	    	{
+	    		HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, 0);
+	    	}
 	    }
-	    else
-	    {
-	    	HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, 0);
+	    else{
+	    	if ((uhTSCAcquisitionValue[1] > TSCx_TS2_MINTHRESHOLD) && (uhTSCAcquisitionValue[1] < TSCx_TS2_MAXTHRESHOLD)) // Channel 2
+	    	{
+	    		HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, 1);
+	    	}
+	    	else
+	    	{
+	    		HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, 0);
+	    	}
 	    }
+
 	  }
 
-	  /*##-6- Re-start the acquisition process ###################################*/
+
+	  /*##-8- Configure the next channels to be acquired #########################*/
+
+	  if (IdxBank == 0)
+	  {
+	    IoConfig.ChannelIOs = TSC_GROUP1_IO4; /* TS2 touchkey */
+	    IdxBank = 1;
+	  }
+	  else
+	  {
+	    IoConfig.ChannelIOs = TSC_GROUP1_IO1; /* TS1 touchkey */
+	    IdxBank = 0;
+	  }
+
+
+	  if (HAL_TSC_IOConfig(htsc, &IoConfig) != HAL_OK)
+	  {
+	    /* Initialization Error */
+	    Error_Handler();
+	  }
+
+	  /*##-9- Re-start the acquisition process ###################################*/
 	  if (HAL_TSC_Start_IT(htsc) != HAL_OK)
 	  {
 	    /* Acquisition Error */
 	    Error_Handler();
 	  }
 }
-
-//void HAL_TSC_ConvCpltCallback(TSC_HandleTypeDef* htsc){
-//	  /*##-5- Discharge the touch-sensing IOs ####################################*/
-//	  HAL_TSC_IODischarge(&TscHandle, ENABLE);
-//	  /* Note: a delay can be added here */
-//
-//	  /*##-6- Check if the acquisition is correct (no max count) #################*/
-//	  if (HAL_TSC_GroupGetStatus(&TscHandle, TSC_GROUP8_IDX) == TSC_GROUP_COMPLETED)
-//	  {
-//	    /*##-7- Read the acquisition value #######################################*/
-//	    uhTSCAcquisitionValue[IdxBank] = HAL_TSC_GroupGetValue(&TscHandle, TSC_GROUP8_IDX);
-//	    /* Note: Show the touch activity on LEDs.
-//	       The threshold values are indicative and may need to be adjusted */
-//	    if ((uhTSCAcquisitionValue[0] > TSCx_TS1_MINTHRESHOLD) && (uhTSCAcquisitionValue[0] < TSCx_TS1_MAXTHRESHOLD)) // Channel 1
-//	    {
-//	      BSP_LED_On(LED1);
-//	    }
-//	    else
-//	    {
-//	      BSP_LED_Off(LED1);
-//	    }
-//
-//	    if ((uhTSCAcquisitionValue[1] > TSCx_TS2_MINTHRESHOLD) && (uhTSCAcquisitionValue[1] < TSCx_TS2_MAXTHRESHOLD)) // Channel 2
-//	    {
-//	      BSP_LED_On(LED2);
-//	    }
-//	    else
-//	    {
-//	      BSP_LED_Off(LED2);
-//	    }
-//	  }
-//
-//
-//	  /*##-8- Configure the next channels to be acquired #########################*/
-//
-//	  if (IdxBank == 0)
-//	  {
-//	    IoConfig.ChannelIOs = TSC_GROUP8_IO4; /* TS2 touchkey */
-//	    IdxBank = 1;
-//	  }
-//	  else
-//	  {
-//	    IoConfig.ChannelIOs = TSC_GROUP8_IO2; /* TS1 touchkey */
-//	    IdxBank = 0;
-//	  }
-//
-//
-//	  if (HAL_TSC_IOConfig(&TscHandle, &IoConfig) != HAL_OK)
-//	  {
-//	    /* Initialization Error */
-//	    Error_Handler();
-//	  }
-//
-//	  /*##-9- Re-start the acquisition process ###################################*/
-//	  if (HAL_TSC_Start_IT(&TscHandle) != HAL_OK)
-//	  {
-//	    /* Acquisition Error */
-//	    Error_Handler();
-//	  }
-//}
 
 /* USER CODE END 4 */
 

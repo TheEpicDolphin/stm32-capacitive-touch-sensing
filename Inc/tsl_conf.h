@@ -41,16 +41,16 @@
 
 /** Total number of channels in application (range=1..255)
 */
-#define TSLPRM_TOTAL_CHANNELS (1)
+#define TSLPRM_TOTAL_CHANNELS (2)
 
 /** Total number of banks in application (range=1..255)
 */
 
-#define TSLPRM_TOTAL_BANKS (1)
+#define TSLPRM_TOTAL_BANKS (2)
 
 /** Total number of "Extended" TouchKeys in application (range=0..255)
 */
-#define TSLPRM_TOTAL_TOUCHKEYS (1)
+#define TSLPRM_TOTAL_TOUCHKEYS (2)
 
 /** Total number of "Basic" TouchKeys in application (range=0..255)
 */
@@ -74,7 +74,7 @@
 /** Total number of sensors/objects in application (range=1..255)
   - Count all TouchKeys, Linear and Rotary sensors
 */
-#define TSLPRM_TOTAL_OBJECTS (1)
+#define TSLPRM_TOTAL_OBJECTS (2)
 
 /** @} Common_Parameters_Number_Of_Elements */
 
