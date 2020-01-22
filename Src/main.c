@@ -39,9 +39,9 @@
 //#define TSCx_MEDIUM_MAXTHRESHOLD        2640
 //#define TSCx_HIGH_MAXTHRESHOLD          2500
 
-#define TSCx_TS1_MINTHRESHOLD			30
+#define TSCx_TS1_MINTHRESHOLD			0
 #define TSCx_TS1_MAXTHRESHOLD			100
-#define TSCx_TS2_MINTHRESHOLD			30
+#define TSCx_TS2_MINTHRESHOLD			0
 #define TSCx_TS2_MAXTHRESHOLD			100
 
 /* USER CODE END PD */
@@ -136,9 +136,9 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  HAL_SuspendTick();
-	  HAL_PWR_EnterSLEEPMode(PWR_MAINREGULATOR_ON, PWR_SLEEPENTRY_WFI);
-	  HAL_ResumeTick();
+	  //HAL_SuspendTick();
+	  //HAL_PWR_EnterSLEEPMode(PWR_MAINREGULATOR_ON, PWR_SLEEPENTRY_WFI);
+	  //HAL_ResumeTick();
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -267,7 +267,6 @@ static void MX_GPIO_Init(void)
   */
 
 void HAL_TSC_ConvCpltCallback(TSC_HandleTypeDef* htsc){
-	HAL_SysTick();
 	  /*##-5- Discharge the touch-sensing IOs ####################################*/
 	  HAL_TSC_IODischarge(htsc, ENABLE);
 	  /* Note: a delay can be added here */
@@ -277,53 +276,78 @@ void HAL_TSC_ConvCpltCallback(TSC_HandleTypeDef* htsc){
 	  {
 	    /*##-7- Read the acquisition value #######################################*/
 	    uhTSCAcquisitionValue[cap_sensor] = HAL_TSC_GroupGetValue(htsc, TSC_GROUP5_IDX);
-	    uint8_t touch = (uhTSCAcquisitionValue[cap_sensor] > TSCx_TS1_MINTHRESHOLD) && (uhTSCAcquisitionValue[cap_sensor] < TSCx_TS1_MAXTHRESHOLD);
+	    uint8_t touch = (uhTSCAcquisitionValue[cap_sensor] >= TSCx_TS1_MINTHRESHOLD) && (uhTSCAcquisitionValue[cap_sensor] <= TSCx_TS1_MAXTHRESHOLD);
 	    if(touch_detector.touch_state == Idle){
 	    	if(touch){
-	    		touch_detector.touch_state = OnePress;
-	    		touch_detector.touches[0].cap_index = cap_sensor;
+	    		touch_detector.touch_state = OnePressed;
+	    		touch_detector.touches[0].cap_idx = cap_sensor;
 	    		touch_detector.touches[0].start_t = HAL_GetTick();
 	    	}
 	    }
-	    else if(touch_detector.touch_state == OnePress){
-	    	if(touch && touch_detector.touches[0].cap_index != cap_sensor){
-	    		touch_detector.touch_state = TwoPresses;
-	    		touch_detector.touches[1].cap_index = cap_sensor;
+	    else if(touch_detector.touch_state == OnePressed){
+	    	if(touch && touch_detector.touches[0].cap_idx != cap_sensor){
+	    		touch_detector.touch_state = TwoPressed;
+	    		touch_detector.touches[1].cap_idx = cap_sensor;
 	    		touch_detector.touches[1].start_t = HAL_GetTick();
 	    	}
-	    	else if(!touch && touch_detector.touches[0].cap_index == cap_sensor)
-	    		touch_detector.touch_state = OneReleaseNoPress;
-	    		touch_detector.touches[0].end_t = HAL_GetTick();
+	    	else if(!touch && touch_detector.touches[0].cap_idx == cap_sensor){
+	    		uint32_t cur_time = HAL_GetTick();
+	    		if(cur_time - touch_detector.touches[0].start_t > DEBOUNCE_TIME){
+	    			touch_detector.touch_state = OneReleasedNoPressed;
+	    			touch_detector.touches[0].end_t = cur_time;
+	    		}
+
 	    	}
 	    }
-	    else if(touch_detector.touch_state == TwoPresses){
+	    else if(touch_detector.touch_state == TwoPressed){
 	    	if(!touch){
-	    		touch_detector.touch_state = OneReleaseOnePress;
-	    		touch_detector.touches[0].end_t = HAL_GetTick();
+	    		touch_detector.touch_state = OneReleasedOnePressed;
+	    		if(touch_detector.touches[0].cap_idx == cap_sensor){
+	    			touch_detector.touches[0].end_t = HAL_GetTick();
+	    		}
+	    		else{
+	    			touch_detector.touches[1].end_t = HAL_GetTick();
+	    		}
 	    	}
 	    }
-	    else if(touch_detector.touch_state == OneReleaseNoPress){
-	    	if((uhTSCAcquisitionValue[cap_sensor] > TSCx_TS1_MINTHRESHOLD) && (uhTSCAcquisitionValue[cap_sensor] < TSCx_TS1_MAXTHRESHOLD)){
-	    		touch_detector.touch_state = OneReleaseOnePress;
-	    		touch_detector.touches[1].cap_index = cap_sensor;
+	    else if(touch_detector.touch_state == OneReleasedNoPressed){
+	    	if(touch){
+	    		touch_detector.touch_state = OneReleasedOnePressed;
+	    		touch_detector.touches[1].cap_idx = cap_sensor;
 	    		touch_detector.touches[1].start_t = HAL_GetTick();
 	    	}
-	    	if(HAL_GetTick() - touch_detector.touches[0].end_t > 5){
+	    	else if(HAL_GetTick() - touch_detector.touches[0].end_t > 10){
 	    		uint32_t touch_duration = touch_detector.touches[0].end_t - touch_detector.touches[0].start_t;
 				if(TAP_MIN_THRESHOLD < touch_duration && touch_duration < TAP_MAX_THRESHOLD){
 					//Register a tap
-					touch_detector.touch_state = Idle;
-				}
-	    	}
-	    }
-	    else if(touch_detector.touch_state == OneReleaseOnePress){
-	    	if((uhTSCAcquisitionValue[cap_sensor] <= TSCx_TS1_MINTHRESHOLD) || (uhTSCAcquisitionValue[cap_sensor] >= TSCx_TS1_MAXTHRESHOLD)){
-	    		touch_detector.touch_state = Idle;
-	    		touch_detector.touches[1].end_t = HAL_GetTick();
-	    		//Register either a tap or a swipe of some kind
-	    	}
-	    }
+					enum TouchType action = Tap;
 
+				}
+				touch_detector.touch_state = Idle;
+	    	}
+	    }
+	    else if(touch_detector.touch_state == OneReleasedOnePressed){
+	    	if(!touch){
+	    		touch_detector.touch_state = Idle;
+	    		if(touch_detector.touches[0].cap_idx == cap_sensor){
+	    			touch_detector.touches[0].end_t = HAL_GetTick();
+	    		}
+	    		else{
+	    			touch_detector.touches[1].end_t = HAL_GetTick();
+	    		}
+
+	    		uint32_t touch_duration = touch_detector.touches[1].end_t - touch_detector.touches[0].start_t;
+	    		if(TAP_MIN_THRESHOLD < touch_duration && touch_duration < TAP_MAX_THRESHOLD){
+	    			//Register a tap
+	    			enum TouchType action = Tap;
+	    		}
+	    		else if(touch_duration > TAP_MAX_THRESHOLD){
+	    			//Register a swipe
+	    			enum TouchType action = (touch_detector.touches[0].cap_idx << 1) | touch_detector.touches[1].cap_idx;
+	    		}
+	    		touch_detector.touch_state = Idle;
+	    	}
+	    }
 	  }
 
 	  //Switches between the two channels to be acquired
