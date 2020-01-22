@@ -58,8 +58,9 @@ TSC_HandleTypeDef htsc;
 /* Array used to store the acquisition value */
 //volatile uint32_t uhTSCAcquisitionValue;
 volatile uint32_t uhTSCAcquisitionValue[2];
-uint8_t IdxBank = 0;
+uint8_t cap_sensor = 0;
 TSC_IOConfigTypeDef IoConfig;
+volatile TouchDetector touch_detector;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -266,6 +267,7 @@ static void MX_GPIO_Init(void)
   */
 
 void HAL_TSC_ConvCpltCallback(TSC_HandleTypeDef* htsc){
+	HAL_SysTick();
 	  /*##-5- Discharge the touch-sensing IOs ####################################*/
 	  HAL_TSC_IODischarge(htsc, ENABLE);
 	  /* Note: a delay can be added here */
@@ -274,44 +276,66 @@ void HAL_TSC_ConvCpltCallback(TSC_HandleTypeDef* htsc){
 	  if (HAL_TSC_GroupGetStatus(htsc, TSC_GROUP5_IDX) == TSC_GROUP_COMPLETED)
 	  {
 	    /*##-7- Read the acquisition value #######################################*/
-	    uhTSCAcquisitionValue[IdxBank] = HAL_TSC_GroupGetValue(htsc, TSC_GROUP5_IDX);
-	    /* Note: Show the touch activity on LEDs.
-	       The threshold values are indicative and may need to be adjusted */
-	    if(IdxBank == 0){
-	    	if ((uhTSCAcquisitionValue[0] > TSCx_TS1_MINTHRESHOLD) && (uhTSCAcquisitionValue[0] < TSCx_TS1_MAXTHRESHOLD)) // Channel 1
-	    	{
-	    		HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, 1);
-	    	}
-	    	else
-	    	{
-	    		HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, 0);
+	    uhTSCAcquisitionValue[cap_sensor] = HAL_TSC_GroupGetValue(htsc, TSC_GROUP5_IDX);
+	    uint8_t touch = (uhTSCAcquisitionValue[cap_sensor] > TSCx_TS1_MINTHRESHOLD) && (uhTSCAcquisitionValue[cap_sensor] < TSCx_TS1_MAXTHRESHOLD);
+	    if(touch_detector.touch_state == Idle){
+	    	if(touch){
+	    		touch_detector.touch_state = OnePress;
+	    		touch_detector.touches[0].cap_index = cap_sensor;
+	    		touch_detector.touches[0].start_t = HAL_GetTick();
 	    	}
 	    }
-	    else{
-	    	if ((uhTSCAcquisitionValue[1] > TSCx_TS2_MINTHRESHOLD) && (uhTSCAcquisitionValue[1] < TSCx_TS2_MAXTHRESHOLD)) // Channel 2
-	    	{
-	    		HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, 1);
+	    else if(touch_detector.touch_state == OnePress){
+	    	if(touch && touch_detector.touches[0].cap_index != cap_sensor){
+	    		touch_detector.touch_state = TwoPresses;
+	    		touch_detector.touches[1].cap_index = cap_sensor;
+	    		touch_detector.touches[1].start_t = HAL_GetTick();
 	    	}
-	    	else
-	    	{
-	    		HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, 0);
+	    	else if(!touch && touch_detector.touches[0].cap_index == cap_sensor)
+	    		touch_detector.touch_state = OneReleaseNoPress;
+	    		touch_detector.touches[0].end_t = HAL_GetTick();
+	    	}
+	    }
+	    else if(touch_detector.touch_state == TwoPresses){
+	    	if(!touch){
+	    		touch_detector.touch_state = OneReleaseOnePress;
+	    		touch_detector.touches[0].end_t = HAL_GetTick();
+	    	}
+	    }
+	    else if(touch_detector.touch_state == OneReleaseNoPress){
+	    	if((uhTSCAcquisitionValue[cap_sensor] > TSCx_TS1_MINTHRESHOLD) && (uhTSCAcquisitionValue[cap_sensor] < TSCx_TS1_MAXTHRESHOLD)){
+	    		touch_detector.touch_state = OneReleaseOnePress;
+	    		touch_detector.touches[1].cap_index = cap_sensor;
+	    		touch_detector.touches[1].start_t = HAL_GetTick();
+	    	}
+	    	if(HAL_GetTick() - touch_detector.touches[0].end_t > 5){
+	    		uint32_t touch_duration = touch_detector.touches[0].end_t - touch_detector.touches[0].start_t;
+				if(TAP_MIN_THRESHOLD < touch_duration && touch_duration < TAP_MAX_THRESHOLD){
+					//Register a tap
+					touch_detector.touch_state = Idle;
+				}
+	    	}
+	    }
+	    else if(touch_detector.touch_state == OneReleaseOnePress){
+	    	if((uhTSCAcquisitionValue[cap_sensor] <= TSCx_TS1_MINTHRESHOLD) || (uhTSCAcquisitionValue[cap_sensor] >= TSCx_TS1_MAXTHRESHOLD)){
+	    		touch_detector.touch_state = Idle;
+	    		touch_detector.touches[1].end_t = HAL_GetTick();
+	    		//Register either a tap or a swipe of some kind
 	    	}
 	    }
 
 	  }
 
-
-	  /*##-8- Configure the next channels to be acquired #########################*/
-
-	  if (IdxBank == 0)
+	  //Switches between the two channels to be acquired
+	  if (cap_sensor == 0)
 	  {
 	    IoConfig.ChannelIOs = TSC_GROUP5_IO2; /* TS2 touchkey */
-	    IdxBank = 1;
+	    cap_sensor = 1;
 	  }
 	  else
 	  {
 	    IoConfig.ChannelIOs = TSC_GROUP5_IO1; /* TS1 touchkey */
-	    IdxBank = 0;
+	    cap_sensor = 0;
 	  }
 
 
@@ -328,6 +352,71 @@ void HAL_TSC_ConvCpltCallback(TSC_HandleTypeDef* htsc){
 	    Error_Handler();
 	  }
 }
+
+
+//void HAL_TSC_ConvCpltCallback(TSC_HandleTypeDef* htsc){
+//	  /*##-5- Discharge the touch-sensing IOs ####################################*/
+//	  HAL_TSC_IODischarge(htsc, ENABLE);
+//	  /* Note: a delay can be added here */
+//
+//	  /*##-6- Check if the acquisition is correct (no max count) #################*/
+//	  if (HAL_TSC_GroupGetStatus(htsc, TSC_GROUP5_IDX) == TSC_GROUP_COMPLETED)
+//	  {
+//	    /*##-7- Read the acquisition value #######################################*/
+//	    uhTSCAcquisitionValue[IdxBank] = HAL_TSC_GroupGetValue(htsc, TSC_GROUP5_IDX);
+//	    /* Note: Show the touch activity on LEDs.
+//	       The threshold values are indicative and may need to be adjusted */
+//	    if(IdxBank == 0){
+//	    	if ((uhTSCAcquisitionValue[0] > TSCx_TS1_MINTHRESHOLD) && (uhTSCAcquisitionValue[0] < TSCx_TS1_MAXTHRESHOLD)) // Channel 1
+//	    	{
+//	    		HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, 1);
+//	    	}
+//	    	else
+//	    	{
+//	    		HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, 0);
+//	    	}
+//	    }
+//	    else{
+//	    	if ((uhTSCAcquisitionValue[1] > TSCx_TS2_MINTHRESHOLD) && (uhTSCAcquisitionValue[1] < TSCx_TS2_MAXTHRESHOLD)) // Channel 2
+//	    	{
+//	    		HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, 1);
+//	    	}
+//	    	else
+//	    	{
+//	    		HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, 0);
+//	    	}
+//	    }
+//
+//	  }
+//
+//
+//	  /*##-8- Configure the next channels to be acquired #########################*/
+//
+//	  if (IdxBank == 0)
+//	  {
+//	    IoConfig.ChannelIOs = TSC_GROUP5_IO2; /* TS2 touchkey */
+//	    IdxBank = 1;
+//	  }
+//	  else
+//	  {
+//	    IoConfig.ChannelIOs = TSC_GROUP5_IO1; /* TS1 touchkey */
+//	    IdxBank = 0;
+//	  }
+//
+//
+//	  if (HAL_TSC_IOConfig(htsc, &IoConfig) != HAL_OK)
+//	  {
+//	    /* Initialization Error */
+//	    Error_Handler();
+//	  }
+//
+//	  /*##-9- Re-start the acquisition process ###################################*/
+//	  if (HAL_TSC_Start_IT(htsc) != HAL_OK)
+//	  {
+//	    /* Acquisition Error */
+//	    Error_Handler();
+//	  }
+//}
 
 /* USER CODE END 4 */
 
