@@ -5,6 +5,7 @@
 #define TAP_MAX_THRESHOLD	150
 #define TAP_MIN_THRESHOLD	50
 #define DEBOUNCE_TIME	30
+#define MAX_SWIPE_GAP	10
 
 enum TouchType{
 	None = 0,
@@ -39,6 +40,6 @@ typedef struct Debouncer{
 	uint8_t clean_out;
 } Debouncer;
 
-void process_touches(TouchDetector *self);
+void process_touches(TouchDetector *self, Debouncer *dbs, uint32_t cur_time, uint8_t cap_sensor);
 void debounce(Debouncer *self, uint8_t noisy_in, uint32_t cur_time);
 
