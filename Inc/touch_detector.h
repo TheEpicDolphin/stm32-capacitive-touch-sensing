@@ -7,9 +7,10 @@
 #define DEBOUNCE_TIME	30
 
 enum TouchType{
-	Tap = 0,
+	None = 0,
 	SwipeForward = 1,
-	SwipeBackward = 2
+	SwipeBackward = 2,
+	Tap = 3
 };
 
 enum TouchState{
@@ -32,7 +33,12 @@ typedef struct TouchDetector{
 	uint8_t touch_state;
 } TouchDetector;
 
-
+typedef struct Debouncer{
+	uint32_t start_t;
+	uint8_t input;
+	uint8_t clean_out;
+} Debouncer;
 
 void process_touches(TouchDetector *self);
+void debounce(Debouncer *self, uint8_t noisy_in, uint32_t cur_time);
 
