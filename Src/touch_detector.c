@@ -65,7 +65,7 @@ void process_touches(TouchDetector *self, Debouncer *dbs, uint32_t cur_time){
     			//Register a tap
     			action = Tap;
     		}
-    		//Otherwise, it was a swipe
+    		//Otherwise, it was a swipe. Might have to adjust these thresholds to allow swipe detection
     		else if(touches_start_diff > TAP_MIN_THRESHOLD && touches_end_diff > TAP_MIN_THRESHOLD){
     			//Register a swipe
     			action = (self->touches[0].cap_idx << 1) | self->touches[1].cap_idx;
