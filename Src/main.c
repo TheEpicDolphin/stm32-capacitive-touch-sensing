@@ -40,9 +40,9 @@
 //#define TSCx_HIGH_MAXTHRESHOLD          2500
 
 #define TSCx_TS1_MINTHRESHOLD			0
-#define TSCx_TS1_MAXTHRESHOLD			150
+#define TSCx_TS1_MAXTHRESHOLD			3100
 #define TSCx_TS2_MINTHRESHOLD			0
-#define TSCx_TS2_MAXTHRESHOLD			150
+#define TSCx_TS2_MAXTHRESHOLD			6150
 
 /* USER CODE END PD */
 
@@ -196,8 +196,8 @@ static void MX_TSC_Init(void)
   /** Configure the TSC peripheral 
   */
   htsc.Instance = TSC;
-  htsc.Init.CTPulseHighLength = TSC_CTPH_2CYCLES;
-  htsc.Init.CTPulseLowLength = TSC_CTPL_2CYCLES;
+  htsc.Init.CTPulseHighLength = TSC_CTPH_4CYCLES;
+  htsc.Init.CTPulseLowLength = TSC_CTPL_4CYCLES;
   htsc.Init.SpreadSpectrum = DISABLE;
   htsc.Init.SpreadSpectrumDeviation = 1;
   htsc.Init.SpreadSpectrumPrescaler = TSC_SS_PRESC_DIV1;
@@ -269,15 +269,25 @@ void HAL_TSC_ConvCpltCallback(TSC_HandleTypeDef* htsc){
 	  HAL_TSC_IODischarge(htsc, ENABLE);
 	  /* Note: a delay can be added here */
 
+	  uint32_t uhTSCAcquisitionValue;
+	  TSC_GroupStatusTypeDef status = HAL_TSC_GroupGetStatus(htsc, TSC_GROUP5_IDX);
+	  uint32_t cur_time;
 	  /*##-6- Check if the acquisition is correct (no max count) #################*/
-	  if (HAL_TSC_GroupGetStatus(htsc, TSC_GROUP5_IDX) == TSC_GROUP_COMPLETED)
+	  if (status == TSC_GROUP_COMPLETED)
 	  {
 	    /*##-7- Read the acquisition value #######################################*/
-	    uint32_t uhTSCAcquisitionValue = HAL_TSC_GroupGetValue(htsc, TSC_GROUP5_IDX);
-	    uint8_t touch = (uhTSCAcquisitionValue >= TSCx_TS1_MINTHRESHOLD) && (uhTSCAcquisitionValue <= TSCx_TS1_MAXTHRESHOLD);
-	    uint32_t cur_time = HAL_GetTick();
+	    uhTSCAcquisitionValue = HAL_TSC_GroupGetValue(htsc, TSC_GROUP5_IDX);
+	    uint8_t touch;
+	    if(cap_sensor == 0){
+	    	touch = (uhTSCAcquisitionValue >= TSCx_TS1_MINTHRESHOLD) && (uhTSCAcquisitionValue <= TSCx_TS1_MAXTHRESHOLD);
+	    }
+	    else{
+	    	touch = (uhTSCAcquisitionValue >= TSCx_TS2_MINTHRESHOLD) && (uhTSCAcquisitionValue <= TSCx_TS2_MAXTHRESHOLD);
+	    }
+
+	    cur_time = HAL_GetTick();
 	    debounce(&dbs[cap_sensor], touch, cur_time);
-	    process_touches(&touch_detector, dbs, cur_time, cap_sensor);
+	    process_touches(&touch_detector, dbs, cur_time);
 	  }
 
 	  //Switches between the two channels to be acquired

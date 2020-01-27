@@ -2,10 +2,12 @@
 #include "stm32f3xx_hal.h"
 
 #define TOUCH_TIMEOUT	1000
-#define TAP_MAX_THRESHOLD	150
-#define TAP_MIN_THRESHOLD	50
+#define TAP_MAX_THRESHOLD	200
+#define TAP_MIN_THRESHOLD	40
 #define DEBOUNCE_TIME	30
 #define MAX_SWIPE_GAP	10
+
+//.1 MF is ideal for capacitor
 
 enum TouchType{
 	None = 0,
@@ -19,8 +21,8 @@ enum TouchState{
 	OnePressed = 1,
 	TwoPressed = 2,
 	OneReleasedNoPressed = 3,
-	OneReleasedOnePressed = 4,
-	TwoReleased = 5
+	FirstReleasedSecondPressed = 4,
+	SecondReleasedFirstPressed = 5
 };
 
 typedef struct Touch{
@@ -40,6 +42,6 @@ typedef struct Debouncer{
 	uint8_t clean_out;
 } Debouncer;
 
-void process_touches(TouchDetector *self, Debouncer *dbs, uint32_t cur_time, uint8_t cap_sensor);
+void process_touches(TouchDetector *self, Debouncer *dbs, uint32_t cur_time);
 void debounce(Debouncer *self, uint8_t noisy_in, uint32_t cur_time);
 
