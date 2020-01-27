@@ -5,7 +5,7 @@
 #define TAP_MAX_THRESHOLD	200
 #define TAP_MIN_THRESHOLD	40
 #define DEBOUNCE_TIME	30
-#define MAX_SWIPE_GAP	10
+#define MIN_SWIPE_GAP	10
 
 //.1 MF is ideal for capacitor
 

@@ -41,7 +41,7 @@ void process_touches(TouchDetector *self, Debouncer *dbs, uint32_t cur_time){
     		self->touches[1].cap_idx = (1 - self->touches[0].cap_idx);
     		self->touches[1].start_t = cur_time;
     	}
-    	else if(cur_time - self->touches[0].end_t > MAX_SWIPE_GAP){
+    	else if(cur_time - self->touches[0].end_t > MIN_SWIPE_GAP){
     		uint32_t touch_duration = self->touches[0].end_t - self->touches[0].start_t;
 			if(TAP_MIN_THRESHOLD < touch_duration && touch_duration < TAP_MAX_THRESHOLD){
 				//Register a tap
